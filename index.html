@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#dcead4" />
+    <title>忍者女孩阿丽亚蒂 · 花园世界</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=ZCOOL+XiaoWei&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="game-root"></div>
+    <div id="hud">
+      <div id="loading" data-ui>
+        <div class="load-card">
+          <p class="eyebrow">花园世界</p>
+          <h1>阿丽亚蒂</h1>
+          <p>正在把叶片和藤蔓铺开…</p>
+          <div class="track"><div id="loading-bar"></div></div>
+        </div>
+      </div>
+
+      <header id="topbar" hidden>
+        <div>
+          <div id="level-title"></div>
+          <div id="level-objective"></div>
+        </div>
+        <div id="timer" aria-label="用时">0.0</div>
+      </header>
+
+      <div id="toast" hidden></div>
+      <div id="windpill" hidden>可以跳</div>
+      <div id="hint" hidden></div>
+
+      <section id="hub" data-ui hidden>
+        <p class="eyebrow">身高 9 厘米</p>
+        <h1>忍者女孩阿丽亚蒂</h1>
+        <p class="lede">花园世界。爬山虎、雏菊，还有会被风吹弯的狗尾草。</p>
+        <div class="cards">
+          <button id="btn-ivy" type="button">
+            <span>爬山虎攀爬</span>
+            <small>沿叶片爬上 1.8 米的墙</small>
+          </button>
+          <button id="btn-flower" type="button">
+            <span>花朵横跳</span>
+            <small>从雏菊跳到三叶草</small>
+          </button>
+          <button id="btn-fox" type="button">
+            <span>风中狗尾草</span>
+            <small>爬高，顺着风跳过去</small>
+          </button>
+          <button id="btn-run" type="button" class="wide">
+            <span>连续挑战</span>
+            <small>三段连着跑，计总时间</small>
+          </button>
+        </div>
+        <p class="controls">
+          手机：滑动移动，点按跳跃。攀爬时上下滑。
+          <br />
+          键盘：WASD 或方向键，空格跳跃，R 重来。
+        </p>
+      </section>
+
+      <div id="play-chrome" hidden>
+        <button id="home" type="button" data-ui>花园</button>
+        <button id="retry" type="button" data-ui>重来</button>
+      </div>
+
+      <button id="mute" type="button" data-ui aria-pressed="false">声音</button>
+
+      <div id="stick" hidden>
+        <div id="stick-knob"></div>
+      </div>
+
+      <section id="result" data-ui hidden>
+        <h2 id="result-title"></h2>
+        <p id="result-detail"></p>
+        <div class="result-actions">
+          <button id="btn-next" type="button">下一段</button>
+          <button id="btn-again" type="button">再试一次</button>
+          <button id="btn-back" type="button" class="ghost">回花园</button>
+        </div>
+      </section>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
