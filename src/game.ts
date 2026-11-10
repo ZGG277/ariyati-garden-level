@@ -38,6 +38,11 @@ export class Game {
   private snap = true
   private pending: LevelId | null = null
   private lastNow = 0
+  private readonly reelName = new URLSearchParams(location.search).get('reel') ?? ''
+  private readonly reel = this.reelName.length > 0
+  private readonly reelT = Number(new URLSearchParams(location.search).get('t') ?? '0') || 0
+  private reelTime = 0
+  private reelShown = ''
 
   private readonly hud: Hud
   private readonly input: Input
@@ -84,7 +89,7 @@ export class Game {
     rim.position.set(-0.2, 1.4, 1.6)
     this.scene.add(rim)
 
-    this.hero = new Hero(this.garden.heroTemplate.clone(true))
+    this.hero = new Hero(this.garden.heroTemplate)
     this.scene.add(this.hero.root)
     this.blob = new THREE.Mesh(
       new THREE.CircleGeometry(0.022, 18),
@@ -210,10 +215,45 @@ export class Game {
     this.hud.showWin(this.stage.winLine, `用时 ${segment.toFixed(1)} 秒${bestLine}`, this.pending ? '下一段' : null)
   }
 
+  private playReel(dt: number): void {
+    this.reelTime += dt
+    const names = ['idle', 'walk', 'charge', 'rise', 'fall', 'land', 'climb', 'hang'] as const
+    const labels: Record<(typeof names)[number], string> = {
+      idle: '待机',
+      walk: '走路',
+      charge: '蓄力',
+      rise: '起跳',
+      fall: '下落',
+      land: '落地',
+      climb: '攀爬',
+      hang: '悬挂',
+    }
+    const locked = (names as readonly string[]).includes(this.reelName)
+    const name = (locked ? this.reelName : names[Math.floor(this.reelTime / 1.4) % names.length]) as (typeof names)[number]
+    if (name !== this.reelShown) {
+      this.reelShown = name
+      this.hud.showPlay(labels[name], '动作', '')
+    }
+    this.body.x = 0.2
+    this.body.y = 0
+    this.body.z = 0.85
+    this.body.yaw = -0.9
+    this.body.grounded = name !== 'rise' && name !== 'fall' && name !== 'hang' && name !== 'climb'
+    this.hero.place(this.body)
+    this.hero.preview(name, this.reelTime + this.reelT, dt)
+    this.camera.position.set(0.48, 0.06, 0.86)
+    this.camera.lookAt(0.2, 0.04, 0.85)
+    this.renderer.render(this.scene, this.camera)
+  }
+
   private frame(): void {
     const now = performance.now()
     const dt = Math.min((now - this.lastNow) / 1000, 0.033)
     this.lastNow = now
+    if (this.reel) {
+      this.playReel(dt)
+      return
+    }
     this.input.tick()
     if (this.input.consumeRetry()) this.retry()
     if (this.input.consumeHub() && this.stage.id !== 'hub') this.enter('hub', false)
@@ -270,11 +310,23 @@ export class Game {
       this.input.consumeJump()
     }
 
-    const moving = Math.hypot(this.body.vx, this.body.vz) > 0.05
+    const moving = Math.hypot(this.body.vx, this.body.vz)
     this.hero.place(this.body)
-    this.hero.update(dt, moving, !this.body.grounded && !this.stage.climbing, this.stage.climbing, this.body.vy)
+    const airborne = !this.body.grounded && !this.stage.climbing && !this.stage.hanging
+    this.hero.update({
+      dt,
+      time: this.worldTime,
+      speed: moving,
+      vy: this.body.vy,
+      grounded: this.body.grounded,
+      charge: airborne ? 0 : this.input.charge,
+      climbing: this.stage.climbing,
+      climbRate: this.stage.climbRate,
+      hanging: this.stage.hanging,
+      swing: this.stage.swing,
+    })
 
-    if (this.stage.id === 'hub' || this.stage.climbing) {
+    if (this.stage.id === 'hub' || this.stage.climbing || this.stage.hanging) {
       this.blob.visible = false
     } else {
       const gy = groundBelow(this.stage.surfaces, this.body.x, this.body.z, this.body.y)

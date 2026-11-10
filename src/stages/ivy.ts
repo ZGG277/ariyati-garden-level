@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { Garden } from '../assets.ts'
 import { addFence, addGround, addPollen, addWall, rng, scatterFloor, type Pollen } from '../dress.ts'
-import { stepPlatformer, wishFromCamera, type Body } from '../physics.ts'
+import { jumpSpeed, stepPlatformer, wishFromCamera, type Body } from '../physics.ts'
 import type { Sim, Spawn, Stage } from '../stage.ts'
 import { TUNE } from '../tune.ts'
 
@@ -168,7 +168,8 @@ export function createIvy(garden: Garden): Stage {
   let vineIndex = 0
   let along = 0
   let grabLock = 0
-  let jumpBuf = 0
+  let queued = 0
+  let queueLeft = 0
   let bestVine = -1
   let bestS = -1
 
@@ -206,7 +207,7 @@ export function createIvy(garden: Garden): Stage {
     id: 'ivy',
     title: '爬山虎攀爬',
     objective: '顺着藤叶爬上墙头',
-    hint: '左右滑动挪步 · 上下滑动攀爬 · 点按起跳',
+    hint: '上下滑攀爬 · 按住蓄力 · 松手跳',
     failLine: '手滑了',
     winLine: '爬上墙头了',
     group,
@@ -217,8 +218,12 @@ export function createIvy(garden: Garden): Stage {
     surfaces,
     status: '',
     climbing: false,
+    climbRate: 0,
+    hanging: false,
+    swing: 0,
     applySpawn(next, body) {
-      jumpBuf = 0
+      queued = 0
+      queueLeft = 0
       grabLock = 0.12
       body.x = next.x
       body.y = next.y
@@ -246,22 +251,24 @@ export function createIvy(garden: Garden): Stage {
       const locked = ctx.lock > 0
       const axisX = locked ? 0 : ctx.input.axisX
       const axisY = locked ? 0 : ctx.input.axisY
-      const jumped = ctx.input.consumeJump()
+      const released = ctx.input.consumeJump()
       grabLock = Math.max(0, grabLock - ctx.dt)
+      let climbRate = 0
 
       if (attached) {
         const vine = vines[vineIndex]!
-        if (!locked && jumped) {
+        if (!locked && released > 0) {
           attached = false
           stage.climbing = false
           grabLock = 0.2
-          ctx.body.vy = TUNE.jumpV * 0.94
-          ctx.body.vx = axisX * 0.5
+          ctx.body.vy = jumpSpeed(released)
+          ctx.body.vx = axisX * 0.55
           ctx.body.vz = axisY < -0.45 ? 0.45 : 0.02
           ctx.body.grounded = false
           ctx.sfx.jump()
         } else {
           const dir = axisY > 0.22 ? 1 : axisY < -0.22 ? -1 : 0
+          climbRate = dir * TUNE.climbSpeed
           along = Math.max(0, Math.min(vine.length, along + dir * TUNE.climbSpeed * ctx.dt))
           if (Math.abs(axisX) > 0.62 && Math.abs(axisY) < 0.4) {
             const cur = pointOn(vine, along)
@@ -286,13 +293,19 @@ export function createIvy(garden: Garden): Stage {
           if (vineIndex === vines.length - 1 && along > vine.length - 0.04) return 'win'
         }
       } else {
-        if (!locked && jumped) jumpBuf = TUNE.jumpBuffer
-        jumpBuf = Math.max(0, jumpBuf - ctx.dt)
+        if (!locked && released > 0) {
+          queued = released
+          queueLeft = TUNE.jumpBuffer
+        }
         const wish = wishFromCamera(axisX, axisY, ctx.rightX, ctx.rightZ, ctx.forwardX, ctx.forwardZ)
-        const step = stepPlatformer(ctx.body, ctx.dt, wish.x, wish.z, !locked && jumpBuf > 0, surfaces)
+        const step = stepPlatformer(ctx.body, ctx.dt, wish.x, wish.z, locked ? 0 : queued, surfaces)
         if (step.jumped) {
-          jumpBuf = 0
+          queued = 0
+          queueLeft = 0
           ctx.sfx.jump()
+        } else {
+          queueLeft = Math.max(0, queueLeft - ctx.dt)
+          if (queueLeft <= 0) queued = 0
         }
         if (step.landed) ctx.sfx.land()
         if (ctx.body.z < 0.02) {
@@ -331,6 +344,9 @@ export function createIvy(garden: Garden): Stage {
       bug.rotation.y = ctx.time * 0.8
       pollen.update(ctx.time)
       stage.climbing = attached
+      stage.climbRate = attached ? climbRate : 0
+      stage.hanging = false
+      stage.swing = 0
       return 'play'
     },
     camera(pos, look, body, aspect) {

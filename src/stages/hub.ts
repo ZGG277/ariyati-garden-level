@@ -80,6 +80,9 @@ export function createHub(garden: Garden): Stage {
     surfaces: [],
     status: '',
     climbing: false,
+    climbRate: 0,
+    hanging: false,
+    swing: 0,
     applySpawn(next, body) {
       body.x = next.x
       body.y = next.y

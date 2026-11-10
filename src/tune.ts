@@ -20,6 +20,8 @@ export const TUNE = {
   stemGrab: 0.06,
   girlHeight: 0.09,
   invuln: 0.28,
+  /** Seconds to go from a tap to a full crouch. */
+  chargeTime: 0.42,
 }
 
 /** Jump apex ≈ jumpV² / (2g) ≈ 0.16 m. Full-speed range ≈ 0.35 m. */

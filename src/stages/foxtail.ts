@@ -9,7 +9,7 @@ import {
   rng,
   scatterFloor,
 } from '../dress.ts'
-import { stepPlatformer, wishFromCamera, type Surface } from '../physics.ts'
+import { jumpSpeed, stepPlatformer, wishFromCamera, type Surface } from '../physics.ts'
 import type { Stage } from '../stage.ts'
 import { TUNE } from '../tune.ts'
 
@@ -107,7 +107,8 @@ export function createFoxtail(garden: Garden): Stage {
   let attached = -1
   let hand = 0.34
   let grabLock = 0
-  let jumpBuf = 0
+  let queued = 0
+  let queueLeft = 0
   let bestStem = -1
   let now = 0
 
@@ -123,7 +124,7 @@ export function createFoxtail(garden: Garden): Stage {
     id: 'foxtail',
     title: '风中狗尾草',
     objective: '爬高一点，顺着风跳过草茎',
-    hint: '左右滑动接近 · 抓住后上下爬 · 点按起跳',
+    hint: '左右靠近 · 抓住后上下爬 · 按住松手跳',
     failLine: '被风吹下去了',
     winLine: '穿过风区了',
     group,
@@ -134,8 +135,12 @@ export function createFoxtail(garden: Garden): Stage {
     surfaces,
     status: '',
     climbing: false,
+    climbRate: 0,
+    hanging: false,
+    swing: 0,
     applySpawn(next, body) {
-      jumpBuf = 0
+      queued = 0
+      queueLeft = 0
       grabLock = 0.15
       body.vx = body.vy = body.vz = 0
       body.yaw = Math.PI / 2
@@ -160,7 +165,8 @@ export function createFoxtail(garden: Garden): Stage {
         body.grounded = true
         body.padId = 'start'
       }
-      stage.climbing = attached >= 0
+      stage.hanging = attached >= 0
+      stage.climbing = false
       stage.status = ''
     },
     simulate(ctx) {
@@ -180,7 +186,7 @@ export function createFoxtail(garden: Garden): Stage {
       const locked = ctx.lock > 0
       const axisX = locked ? 0 : ctx.input.axisX
       const axisY = locked ? 0 : ctx.input.axisY
-      const jumped = ctx.input.consumeJump()
+      const released = ctx.input.consumeJump()
       grabLock = Math.max(0, grabLock - ctx.dt)
 
       if (attached >= 0) {
@@ -208,26 +214,32 @@ export function createFoxtail(garden: Garden): Stage {
         const targetX = next ? next.x : goal.x - goal.r
         const gap = targetX - p.x
         stage.status = gap > 0.03 && gap < 0.2 ? '可以跳' : ''
-        if (!locked && jumped) {
+        if (!locked && released > 0) {
           attached = -1
-          stage.climbing = false
+          stage.hanging = false
           grabLock = 0.22
           stage.status = ''
-          ctx.body.vy = TUNE.jumpV
+          ctx.body.vy = jumpSpeed(released)
           const bias = Math.abs(axisX) > 0.18 ? axisX * 0.36 : 0.18
-          ctx.body.vx = p.vx + bias
+          ctx.body.vx = p.vx + bias * (0.7 + 0.5 * released)
           ctx.body.vz = 0
           ctx.sfx.jump()
         }
       } else {
         stage.status = ''
-        if (!locked && jumped) jumpBuf = TUNE.jumpBuffer
-        jumpBuf = Math.max(0, jumpBuf - ctx.dt)
+        if (!locked && released > 0) {
+          queued = released
+          queueLeft = TUNE.jumpBuffer
+        }
         const wish = wishFromCamera(axisX, axisY, ctx.rightX, ctx.rightZ, ctx.forwardX, ctx.forwardZ)
-        const step = stepPlatformer(ctx.body, ctx.dt, wish.x, wish.z, !locked && jumpBuf > 0, surfaces)
+        const step = stepPlatformer(ctx.body, ctx.dt, wish.x, wish.z, locked ? 0 : queued, surfaces)
         if (step.jumped) {
-          jumpBuf = 0
+          queued = 0
+          queueLeft = 0
           ctx.sfx.jump()
+        } else {
+          queueLeft = Math.max(0, queueLeft - ctx.dt)
+          if (queueLeft <= 0) queued = 0
         }
         if (step.landed) ctx.sfx.land()
         ctx.body.z = Math.max(-0.06, Math.min(0.1, ctx.body.z))
@@ -248,7 +260,7 @@ export function createFoxtail(garden: Garden): Stage {
             if (best >= 0) {
               attached = best
               hand = hy
-              stage.climbing = true
+              stage.hanging = true
               ctx.sfx.grab()
             }
           }
@@ -262,7 +274,10 @@ export function createFoxtail(garden: Garden): Stage {
         if (s.position.x > 2.8) s.position.x = -0.5
       }
       pollen.update(time)
-      stage.climbing = attached >= 0
+      stage.climbing = false
+      stage.hanging = attached >= 0
+      stage.climbRate = attached >= 0 ? axisY * 0.26 : 0
+      stage.swing = attached >= 0 ? ctx.body.vx : 0
       return 'play'
     },
     camera(pos, look, body, aspect) {

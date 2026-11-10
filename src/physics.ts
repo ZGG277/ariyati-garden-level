@@ -38,7 +38,7 @@ export function stepPlatformer(
   dt: number,
   wishX: number,
   wishZ: number,
-  jumpBuffered: boolean,
+  jumpPower: number,
   surfaces: Surface[],
 ): StepResult {
   const wishMag = Math.hypot(wishX, wishZ)
@@ -53,8 +53,8 @@ export function stepPlatformer(
   body.vz = approach(body.vz, wishZ, rate * dt)
 
   let jumped = false
-  if (jumpBuffered && (body.grounded || body.coyote > 0)) {
-    body.vy = TUNE.jumpV
+  if (jumpPower > 0 && (body.grounded || body.coyote > 0)) {
+    body.vy = jumpSpeed(jumpPower)
     body.grounded = false
     body.coyote = 0
     body.padId = null
@@ -137,6 +137,12 @@ function approach(current: number, target: number, maxDelta: number): number {
   const d = target - current
   if (Math.abs(d) <= maxDelta) return target
   return current + Math.sign(d) * maxDelta
+}
+
+/** power 0.3 is a tap hop; 1 is a full charged jump. */
+export function jumpSpeed(power: number): number {
+  const p = Math.min(1, Math.max(0, power))
+  return TUNE.jumpV * (0.52 + 0.6 * p)
 }
 
 export function dampAngle(current: number, target: number, dt: number, sharpness: number): number {

@@ -34,8 +34,8 @@ If you prefer not to use Actions, run `npm run build` and publish the `dist/` fo
 
 | | Move | Jump | Climb |
 | --- | --- | --- | --- |
-| Touch | Drag | Tap | Up / down while holding ivy or a foxtail |
-| Keyboard | WASD or arrows | Space | W / S or up / down on a vine or stem |
+| Touch | Drag | Hold still, then release. A short tap hops; a longer hold crouches and jumps higher | Up / down while holding ivy or a foxtail |
+| Keyboard | WASD or arrows | Hold Space, then release | W / S or up / down on a vine or stem |
 
 `R` restarts the segment. `Esc` returns to the garden. Falling sends Arrietty back to the last safe hold immediately. **重来** starts the segment over.
 

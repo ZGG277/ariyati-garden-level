@@ -48,6 +48,11 @@ export type Stage = {
   /** Extra line for the wind-timing hint. Empty hides it. */
   status: string
   climbing: boolean
+  /** Signed climb speed along a vine or stem, meters per second. */
+  climbRate: number
+  hanging: boolean
+  /** Lateral speed while hanging, used to swing the legs. */
+  swing: number
   simulate: (ctx: Sim) => 'play' | 'win'
   applySpawn: (spawn: Spawn, body: Body) => void
   camera: (pos: THREE.Vector3, look: THREE.Vector3, body: Body, aspect: number, time: number) => void

@@ -21,10 +21,13 @@ export class Input {
   private stickId: number | null = null
   private touchX = 0
   private touchY = 0
-  private jumpQueued = false
+  /** 0–1 crouch while a jump is held. */
+  charge = 0
   private retryQueued = false
   private hubQueued = false
   private holdUntil = 0
+  private spaceDownAt = 0
+  private jumpPowerQueued = 0
 
   constructor() {
     window.addEventListener('keydown', this.onKeyDown)
@@ -47,7 +50,7 @@ export class Input {
     if (e.repeat) return
     const tag = (e.target as HTMLElement | null)?.tagName
     if (tag === 'INPUT' || tag === 'TEXTAREA') return
-    if (e.code === 'Space') this.jumpQueued = true
+    if (e.code === 'Space' && !this.keys.has(' ')) this.spaceDownAt = performance.now()
     if (e.code === 'KeyR') this.retryQueued = true
     if (e.code === 'Escape') this.hubQueued = true
     this.keys.add(e.key.toLowerCase())
@@ -58,6 +61,11 @@ export class Input {
   }
 
   private onKeyUp = (e: KeyboardEvent): void => {
+    if (e.code === 'Space' && this.spaceDownAt > 0) {
+      this.jumpPowerQueued = holdPower(performance.now() - this.spaceDownAt)
+      this.spaceDownAt = 0
+      this.charge = 0
+    }
     const px = this.axisX
     const py = this.axisY
     this.keys.delete(e.key.toLowerCase())
@@ -113,8 +121,6 @@ export class Input {
     const p = this.pointers.get(e.pointerId)
     if (!p) return
     const dist = Math.hypot(p.x - p.sx, p.y - p.sy)
-    const held = performance.now() - p.t
-    if (dist < 18 && held < 320) this.jumpQueued = true
     const dragged = this.stickId === e.pointerId
     const px = this.touchX
     const py = this.touchY
@@ -127,6 +133,7 @@ export class Input {
     this.pointers.delete(e.pointerId)
     this.syncAxes()
     if (dragged && dist >= 18) this.carryTap(px, py)
+    else if (!dragged) this.jumpPowerQueued = holdPower(performance.now() - p.t)
   }
 
   /** A released direction keeps steering briefly, so a tap is a step. */
@@ -143,6 +150,15 @@ export class Input {
       this.holdUntil = 0
       if (this.keys.size === 0 && this.stickId === null) this.syncAxes()
     }
+    let anchor = this.spaceDownAt
+    if (anchor === 0) {
+      for (const [id, pointer] of this.pointers) {
+        if (id === this.stickId) continue
+        anchor = pointer.t
+        break
+      }
+    }
+    this.charge = anchor > 0 ? chargeFrom(performance.now() - anchor) : 0
   }
 
   private syncAxes(): void {
@@ -161,9 +177,10 @@ export class Input {
     this.axisY = this.touchY
   }
 
-  consumeJump(): boolean {
-    const v = this.jumpQueued
-    this.jumpQueued = false
+  /** 0 if nothing was released. Otherwise 0.3 for a tap, up to 1 when charged. */
+  consumeJump(): number {
+    const v = this.jumpPowerQueued
+    this.jumpPowerQueued = 0
     return v
   }
 
@@ -180,13 +197,25 @@ export class Input {
   }
 
   flush(): void {
-    this.jumpQueued = false
     this.retryQueued = false
     this.hubQueued = false
     this.holdUntil = 0
     this.axisX = 0
     this.axisY = 0
+    this.charge = 0
+    this.spaceDownAt = 0
+    this.jumpPowerQueued = 0
   }
+}
+
+function holdPower(ms: number): number {
+  const held = ms / 1000
+  if (held < 0.12) return 0.3
+  return Math.min(1, 0.3 + 0.7 * chargeFrom(ms))
+}
+
+function chargeFrom(ms: number): number {
+  return Math.min(1, Math.max(0, (ms / 1000 - 0.05) / TUNE.chargeTime))
 }
 
 function clamp(v: number, a: number, b: number): number {

@@ -98,14 +98,15 @@ export function createFlower(garden: Garden): Stage {
   )
 
   const spawn = { x: 0, y: PADS[0]!.y, z: 0, yaw: Math.PI / 2 }
-  let jumpBuf = 0
+  let queued = 0
+  let queueLeft = 0
   let bestX = spawn.x
 
   return {
     id: 'flower',
     title: '花朵横跳',
     objective: '跳过雏菊和三叶草，到达对岸',
-    hint: '滑动移动 · 点按跳跃',
+    hint: '滑动移动 · 按住蓄力 · 松手跳',
     failLine: '掉进花径里了',
     winLine: '到达对岸了',
     group,
@@ -116,8 +117,12 @@ export function createFlower(garden: Garden): Stage {
     surfaces,
     status: '',
     climbing: false,
+    climbRate: 0,
+    hanging: false,
+    swing: 0,
     applySpawn(next, body) {
-      jumpBuf = 0
+      queued = 0
+      queueLeft = 0
       bestX = next.x
       body.x = next.x
       body.y = next.y
@@ -132,14 +137,20 @@ export function createFlower(garden: Garden): Stage {
       const locked = ctx.lock > 0
       const axisX = locked ? 0 : ctx.input.axisX
       const axisY = locked ? 0 : ctx.input.axisY
-      const jumped = ctx.input.consumeJump()
-      if (!locked && jumped) jumpBuf = TUNE.jumpBuffer
-      jumpBuf = Math.max(0, jumpBuf - ctx.dt)
+      const released = ctx.input.consumeJump()
+      if (!locked && released > 0) {
+        queued = released
+        queueLeft = TUNE.jumpBuffer
+      }
       const wish = wishFromCamera(axisX, axisY, ctx.rightX, ctx.rightZ, ctx.forwardX, ctx.forwardZ)
-      const step = stepPlatformer(ctx.body, ctx.dt, wish.x, wish.z, !locked && jumpBuf > 0, surfaces)
+      const step = stepPlatformer(ctx.body, ctx.dt, wish.x, wish.z, locked ? 0 : queued, surfaces)
       if (step.jumped) {
-        jumpBuf = 0
+        queued = 0
+        queueLeft = 0
         ctx.sfx.jump()
+      } else {
+        queueLeft = Math.max(0, queueLeft - ctx.dt)
+        if (queueLeft <= 0) queued = 0
       }
       if (step.landed) ctx.sfx.land()
       if (step.pad?.goal && ctx.body.grounded) return 'win'
